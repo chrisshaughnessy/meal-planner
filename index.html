@@ -427,10 +427,16 @@ function renderPlan(){
   for(let i=0;i<7;i++){
     const d=addDays(weekStart,i), di=iso(d), entry=planFor(di);
     const isToday=di===iso(new Date());
+    const rcp = entry ? (db.recipes.find(r=>r.id===entry.recipe_id) || db.recipes.find(r=>r.title.toLowerCase()===(entry.title||'').toLowerCase())) : null;
+    const mealEl = entry
+      ? el('div',{class:'meal',style:rcp?'cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px':'',
+          onclick: rcp?()=>viewRecipe(rcp):()=>toast('No saved recipe for this dinner — add it in Recipes')},
+          entry.title + (rcp?' 📖':''))
+      : el('div',{class:'meal empty'},'—');
     const card=el('div',{class:'day'+(isToday?' today':'')},
       el('div',{class:'row',style:'justify-content:space-between'},
         el('span',{class:'dow'},fmtDay(d)), el('span',{class:'date'},fmtDate(d))),
-      el('div',{class:'meal'+(entry?'':' empty')},entry?entry.title:'—'),
+      mealEl,
       el('div',{class:'dayactions'},
         el('button',{class:'btn sm ghost',onclick:()=>pickMealFor(di)}, entry?'Change':'Add'),
         entry?el('button',{class:'btn sm ghost',onclick:()=>clearMeal(di)},'✕'):''
