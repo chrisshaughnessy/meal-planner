@@ -62,6 +62,7 @@
   .pill.vegetable{background:#20322a; color:#88d5ac}
   .pill.starch{background:#33301f; color:#e8ca82}
   .pill.ai{background:#232f45; color:#9bbcf5}
+  .pill.cuisine{background:#2a2440; color:#c8b8f2}
 
   /* App shell */
   .app{max-width:1100px; margin:0 auto; padding:14px 14px calc(84px + var(--pad))}
@@ -686,8 +687,13 @@ function renderPropose(){
       el('p',{},'No proposals yet for this week. Pick some components above and hit Propose.')));
     return wrap;
   }
-  // sort by score
-  const scored=weekProps.map(p=>({p,score:voteScore(p.id)})).sort((a,b)=>b.score-a.score);
+  // group by cuisine (alpha, blanks last), then by score within group
+  const scored=weekProps.map(p=>({p,score:voteScore(p.id),cuisine:propParts(p).cuisine}))
+    .sort((a,b)=>{
+      const ca=a.cuisine||'~', cb=b.cuisine||'~';
+      if(ca!==cb) return ca.localeCompare(cb);
+      return b.score-a.score;
+    });
   const grid=el('div',{class:'grid2'});
   scored.forEach(({p})=>grid.append(proposalCard(p)));
   wrap.append(grid);
@@ -696,18 +702,25 @@ function renderPropose(){
 function votesFor(pid){return db.votes.filter(v=>v.proposal_id===pid);}
 function voteScore(pid){return votesFor(pid).reduce((s,v)=>s+v.value,0);}
 function myVote(pid){return votesFor(pid).find(v=>v.member_name===cfg.memberName);}
+function propParts(p){
+  let cuisine='',desc=p.description||'';
+  const m=desc.match(/^\[([^\]]+)\]\s*(.*)$/); if(m){cuisine=m[1];desc=m[2];}
+  return {cuisine,desc};
+}
 function proposalCard(p){
   const vs=votesFor(p.id), up=vs.filter(v=>v.value>0), down=vs.filter(v=>v.value<0);
   const mine=myVote(p.id);
+  const {cuisine,desc}=propParts(p);
   const c=el('div',{class:'card'},
     el('div',{class:'row',style:'justify-content:space-between;align-items:flex-start'},
       el('h3',{class:'grow',style:'margin:0'},p.title),
+      cuisine?el('span',{class:'pill cuisine'},cuisine):'',
       p.origin==='ai'?el('span',{class:'pill ai'},'AI'):''),
     el('div',{class:'row',style:'gap:6px;margin:8px 0'},
       p.protein?el('span',{class:'pill protein'},p.protein):'',
       p.vegetable?el('span',{class:'pill vegetable'},p.vegetable):'',
       p.starch?el('span',{class:'pill starch'},p.starch):''),
-    p.description?el('p',{class:'muted',style:'margin:.3em 0'},p.description):'',
+    desc?el('p',{class:'muted',style:'margin:.3em 0'},desc):'',
     el('div',{class:'votebar'},
       el('button',{class:'btn sm'+(mine&&mine.value>0?' good':''),onclick:()=>castVote(p.id,1)},'👍 '+up.length),
       el('button',{class:'btn sm'+(mine&&mine.value<0?' ':''),style:mine&&mine.value<0?'border-color:var(--bad)':'',onclick:()=>castVote(p.id,-1)},'👎 '+down.length),
@@ -817,16 +830,17 @@ async function proposeAI(){
     const res=await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model,stream:false,format:'json',
         messages:[
-          {role:'system',content:'You are a helpful family dinner planner. Reply ONLY with JSON of the form {"dinners":[{"title":"","protein":"","vegetable":"","starch":"","description":"","ingredients":""}]}. Give 5 dinners. Keep titles short and appetizing. description = one sentence.'},
+          {role:'system',content:'You are a helpful family dinner planner. Reply ONLY with JSON of the form {"dinners":[{"title":"","cuisine":"","protein":"","vegetable":"","starch":"","description":"","ingredients":""}]}. Give 6 dinners. Each MUST use the requested components. Make the dinners span a VARIETY of cuisines (e.g. Japanese, Chinese, Italian, Mexican, Indian, American, Thai, Greek) and set "cuisine" to that one word. Keep titles short and appetizing. description = one sentence.'},
           {role:'user',content:prompt}
         ]})});
     if(!res.ok) throw new Error('Ollama HTTP '+res.status);
     const data=await res.json();
     const content=data.message?.content||data.response||'';
     let parsed; try{parsed=JSON.parse(content);}catch{ parsed=JSON.parse(content.slice(content.indexOf('{'),content.lastIndexOf('}')+1)); }
-    const dinners=(parsed.dinners||parsed.meals||[]).slice(0,6).map(d=>({
+    const dinners=(parsed.dinners||parsed.meals||[]).slice(0,8).map(d=>({
       title:d.title||d.name||'Dinner',protein:d.protein||'',vegetable:d.vegetable||d.veg||'',
-      starch:d.starch||'',description:d.description||'',ingredients:Array.isArray(d.ingredients)?d.ingredients.join('\n'):(d.ingredients||''),origin:'ai'}));
+      starch:d.starch||'',description:(d.cuisine?('['+String(d.cuisine).trim()+'] '):'')+(d.description||''),
+      ingredients:Array.isArray(d.ingredients)?d.ingredients.join('\n'):(d.ingredients||''),origin:'ai'}));
     if(!dinners.length) throw new Error('Model returned no dinners');
     await insertProposals(dinners,iso(weekStart));
     st.textContent='';
@@ -843,12 +857,14 @@ function buildAIPrompt(){
   const likes=db.members.map(m=>`${m.name}: likes ${(m.prefs?.likes||[]).join(', ')||'—'}; dislikes ${(m.prefs?.dislikes||[]).join(', ')||'—'}`).join(' | ');
   const lib=db.recipes.slice(0,25).map(r=>r.title).join(', ')||'none yet';
   const recent=db.plan.slice(-10).map(p=>p.title).join(', ')||'none';
-  return `Propose 5 dinner ideas for a family for the week of ${fmtDate(weekStart)}.
-Cravings tonight: ${want}.
+  const anyPicks = picks.protein.length||picks.vegetable.length||picks.starch.length;
+  return `Propose 6 dinner ideas for a family for the week of ${fmtDate(weekStart)}.
+${anyPicks?`They specifically want to build around — ${want} — so EVERY dinner should feature that combo, just cooked different ways.`:`Cravings: ${want}.`}
+Give each dinner a DIFFERENT cuisine (Japanese, Chinese, Italian, Mexican, Indian, American, Thai, Greek, Korean...) so it reads like a menu of options for the same ingredients.
 Family preferences: ${likes}.
-Dinners we already have as recipes (feel free to riff, but favor variety): ${lib}.
+Dinners we already have as recipes (favor variety, don't just repeat these): ${lib}.
 Recently eaten (avoid repeating): ${recent}.
-Mix a couple of familiar ideas with a couple of new ones. Use everyday ingredients.`;
+Use everyday ingredients.`;
 }
 async function insertProposals(list,wk){
   const existing=new Set(db.proposals.filter(p=>p.week_of===wk).map(p=>(p.title||'').toLowerCase()));
