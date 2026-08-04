@@ -37,6 +37,12 @@ You'll paste those into the app on first open.
    ollama pull llama3.1
    ```
    (You can try `qwen2.5:7b` or `llama3.2` too — put whichever name in the app's Model field.)
+
+   For **photo recipe import** (snap a card → auto-fill), also pull a *vision* model:
+   ```
+   ollama pull llama3.2-vision
+   ```
+   (Set it in the app under ⚙︎ Settings → "Vision model". Text-only models like llama3.1 can't read images.)
 3. **Let the web app talk to Ollama.** By default Ollama only allows localhost.
    Set an environment variable so your hosted page is allowed, then restart Ollama:
 
