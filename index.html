@@ -314,7 +314,6 @@ if(!window.supabase||!window.supabase.createClient){
   if(c) c.prepend(el('div',{class:'banner'},
     '⚠️ The database library (supabase.js) didn\'t load. Hard-refresh with Ctrl+Shift+R. If it keeps failing, a browser extension or tracking-protection is blocking it — try disabling shield/ad-block for this site.'));
 }
-init();
 function init(){
   if(cfg?.url&&cfg?.key&&cfg?.familyCode&&cfg?.memberName){
     makeClient(); showMain();
@@ -838,6 +837,9 @@ function openModal(title,body){
   $('#modal-root').append(bg);
 }
 function closeModal(){$('#modal-root').innerHTML='';}
+
+/* ================= start (after everything is defined) ================= */
+init();
 </script>
 </body>
 </html>
