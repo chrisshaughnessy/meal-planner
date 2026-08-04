@@ -219,6 +219,19 @@
 
 <script src="supabase.js"></script>
 <script>
+/* ---- on-screen error reporter (so problems are never silent) ---- */
+(function(){
+  function banner(msg){
+    var b=document.getElementById('crash-banner');
+    if(!b){ b=document.createElement('div'); b.id='crash-banner';
+      b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9999;background:#3a2530;color:#ffd7dc;border-bottom:1px solid #e05c6b;padding:10px 14px;font:13px/1.4 monospace;white-space:pre-wrap;max-height:45vh;overflow:auto';
+      (document.body||document.documentElement).appendChild(b); }
+    b.textContent='⚠️ Error (screenshot this): '+msg;
+  }
+  window.addEventListener('error',function(e){ banner((e.message||'script error')+'  @ '+(e.filename||'').split('/').pop()+':'+e.lineno); });
+  window.addEventListener('unhandledrejection',function(e){ banner('Promise: '+(e.reason&&e.reason.message||e.reason)); });
+  window.addEventListener('load',function(){ if(!window.supabase||!window.supabase.createClient) banner('supabase.js did not define window.supabase — the library file failed to load or was blocked.'); });
+})();
 /* ================= config & state ================= */
 const LS = 'mealplanner.cfg.v1';
 let cfg = JSON.parse(localStorage.getItem(LS) || 'null');
