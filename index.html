@@ -482,22 +482,41 @@ function renderLibrary(){
   }
   const grid=el('div',{class:'grid2'});
   db.recipes.forEach(r=>{
-    const c=el('div',{class:'card'},
+    const c=el('div',{class:'card',style:'cursor:pointer',onclick:()=>viewRecipe(r)},
       el('div',{class:'row',style:'justify-content:space-between;align-items:flex-start'},
         el('h3',{class:'grow',style:'margin:0'},r.title),
-        el('button',{class:'btn sm ghost',onclick:()=>editRecipe(r)},'Edit')),
+        el('button',{class:'btn sm ghost',onclick:(e)=>{e.stopPropagation();editRecipe(r);}},'Edit')),
       el('div',{class:'row',style:'gap:6px;margin:8px 0'},
         r.protein?el('span',{class:'pill protein'},r.protein):'',
         r.vegetable?el('span',{class:'pill vegetable'},r.vegetable):'',
         r.starch?el('span',{class:'pill starch'},r.starch):''),
       r.notes?el('p',{class:'muted',style:'margin:.3em 0'},r.notes):'',
       (r.tags&&r.tags.length)?el('div',{class:'row',style:'gap:5px'},...r.tags.map(t=>el('span',{class:'tag'},t))):'',
-      r.source?el('div',{class:'faint',style:'font-size:.75rem;margin-top:6px'},'source: '+r.source):''
+      el('div',{class:'faint',style:'font-size:.75rem;margin-top:8px'},'Tap to view'+(r.source?' · '+r.source:''))
     );
     grid.append(c);
   });
   wrap.append(grid);
   return wrap;
+}
+function viewRecipe(r){
+  const body=el('div');
+  body.append(el('div',{class:'row',style:'gap:6px;margin-bottom:12px'},
+    r.protein?el('span',{class:'pill protein'},r.protein):'',
+    r.vegetable?el('span',{class:'pill vegetable'},r.vegetable):'',
+    r.starch?el('span',{class:'pill starch'},r.starch):''));
+  if(r.ingredients){ body.append(el('h3',{},'Ingredients'), el('p',{class:'muted',style:'white-space:pre-wrap;margin:.3em 0'},r.ingredients)); }
+  if(r.steps){ body.append(el('h3',{style:'margin-top:14px'},'How to make it'), el('p',{style:'white-space:pre-wrap;margin:.3em 0'},r.steps)); }
+  if(r.notes){ body.append(el('h3',{style:'margin-top:14px'},'Notes'), el('p',{class:'muted',style:'white-space:pre-wrap;margin:.3em 0'},r.notes)); }
+  if(r.tags&&r.tags.length) body.append(el('div',{class:'row',style:'gap:5px;margin-top:12px'},...r.tags.map(t=>el('span',{class:'tag'},t))));
+  if(r.source) body.append(el('div',{class:'faint',style:'margin-top:10px;font-size:.8rem'},'Source: '+r.source));
+  if(!r.ingredients&&!r.steps) body.append(el('p',{class:'muted'},'No ingredients or steps saved yet — hit Edit to add them.'));
+  body.append(el('div',{class:'divider'}));
+  body.append(el('div',{class:'row'},
+    el('button',{class:'btn ghost',onclick:closeModal},'Close'),
+    el('div',{class:'grow'}),
+    el('button',{class:'btn',onclick:()=>{closeModal();editRecipe(r);}},'✎ Edit')));
+  openModal(r.title,body);
 }
 function editRecipe(r){
   const f=r||{};
