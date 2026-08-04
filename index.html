@@ -715,9 +715,34 @@ function proposalCard(p){
       el('button',{class:'btn sm ghost',onclick:()=>addProposalToPlan(p)},'📅 Add to plan')
     ),
     up.length?el('div',{class:'voters'},'👍 '+up.map(v=>v.member_name).join(', ')):'',
-    (p.ingredients)?el('details',{style:'margin-top:8px'},el('summary',{class:'faint'},'ingredients'),el('p',{class:'muted',style:'white-space:pre-wrap'},p.ingredients)):''
+    (p.ingredients)?el('details',{style:'margin-top:8px'},el('summary',{class:'faint'},'ingredients'),el('p',{class:'muted',style:'white-space:pre-wrap'},p.ingredients)):
+      el('div',{class:'row',style:'margin-top:8px;align-items:center'},
+        el('span',{class:'faint',style:'font-size:.8rem'},'No recipe yet.'),
+        el('button',{class:'btn sm good',onclick:()=>inventForProposal(p)},'🤖 Invent a recipe'))
   );
   return c;
+}
+async function inventForProposal(p){
+  const base=(cfg.ollama||'http://localhost:11434').replace(/\/$/,''); const model=cfg.model||'llama3.1';
+  toast('Inventing a recipe with your local AI…');
+  try{
+    const comps=[p.protein,p.vegetable,p.starch].filter(Boolean).join(', ');
+    const sys='You invent a simple, family-friendly weeknight dinner recipe and return ONLY JSON: {"title":"","protein":"","vegetable":"","starch":"","ingredients":"","steps":"","tags":[]}. ingredients = each item with a rough quantity on its own line. steps = numbered lines. Keep it realistic and easy.';
+    const user=`Invent a dinner recipe titled "${p.title}"${comps?(' built around '+comps):''}. Something a family would enjoy on a busy weeknight.`;
+    const res=await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model,stream:false,format:'json',messages:[{role:'system',content:sys},{role:'user',content:user}]})});
+    if(!res.ok) throw new Error('Ollama HTTP '+res.status);
+    const data=await res.json(); const content=data.message?.content||data.response||'';
+    let o; try{o=JSON.parse(content);}catch{ o=JSON.parse(content.slice(content.indexOf('{'),content.lastIndexOf('}')+1)); }
+    const ing=Array.isArray(o.ingredients)?o.ingredients.join('\n'):(o.ingredients||'');
+    const steps=Array.isArray(o.steps)?o.steps.map((s,i)=>(i+1)+'. '+s).join('\n'):(o.steps||'');
+    if(!ing&&!steps) throw new Error('Model returned an empty recipe');
+    await sb.from('recipes').insert({family_code:cfg.familyCode,title:p.title,protein:p.protein||o.protein||'',
+      vegetable:p.vegetable||o.vegetable||'',starch:p.starch||o.starch||'',ingredients:ing,steps:steps,
+      tags:Array.isArray(o.tags)?o.tags:['ai'],source:'AI invented',created_by:cfg.memberName});
+    await sb.from('proposals').update({ingredients:ing,description:'AI-invented recipe — saved to your library'}).eq('id',p.id);
+    await loadAll(); render(); toast('Recipe invented & saved to your library!','ok');
+  }catch(e){ toast('AI: '+photoErr(e),'err'); }
 }
 async function castVote(pid,val){
   const mine=myVote(pid);
