@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Family Dinner Planner</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍽️</text></svg>" />
+<style>
+  :root{
+    --bg:#0f1216; --bg2:#161b22; --bg3:#1c232d; --line:#28313d;
+    --text:#e6edf3; --dim:#9aa7b4; --faint:#6b7684;
+    --accent:#5b8def; --accent2:#3fb27f; --warn:#e0a03c; --bad:#e05c6b;
+    --chip:#22303f; --radius:14px;
+    --pad: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--text);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-text-size-adjust:100%;
+  }
+  h1,h2,h3{margin:0 0 .4em; font-weight:650}
+  h1{font-size:1.35rem}
+  h2{font-size:1.1rem}
+  h3{font-size:.95rem}
+  button{font:inherit; cursor:pointer}
+  input,textarea,select{
+    font:inherit; color:var(--text); background:var(--bg3);
+    border:1px solid var(--line); border-radius:10px; padding:9px 11px; width:100%;
+  }
+  textarea{resize:vertical; min-height:70px}
+  label{display:block; font-size:.8rem; color:var(--dim); margin:10px 0 4px}
+  a{color:var(--accent)}
+  .btn{
+    background:var(--bg3); color:var(--text); border:1px solid var(--line);
+    border-radius:10px; padding:9px 14px; display:inline-flex; align-items:center; gap:7px;
+  }
+  .btn:hover{border-color:var(--faint)}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+  .btn.good{background:var(--accent2); border-color:var(--accent2); color:#04150e}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:5px 9px; font-size:.85rem; border-radius:8px}
+  .btn.icon{padding:6px 8px}
+  .btn:disabled{opacity:.5; cursor:not-allowed}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .grow{flex:1 1 auto; min-width:0}
+  .muted{color:var(--dim)}
+  .faint{color:var(--faint)}
+  .card{background:var(--bg2); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:14px}
+  .chip{
+    display:inline-flex; align-items:center; gap:6px; background:var(--chip); color:var(--text);
+    border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:.85rem; cursor:pointer;
+    user-select:none;
+  }
+  .chip.on{background:var(--accent); border-color:var(--accent); color:#fff}
+  .chip .x{color:var(--faint); font-weight:700}
+  .chip .x:hover{color:var(--bad)}
+  .tag{font-size:.72rem; background:var(--chip); border:1px solid var(--line); color:var(--dim); border-radius:6px; padding:2px 7px}
+  .pill{font-size:.72rem; padding:2px 8px; border-radius:999px; font-weight:600}
+  .pill.protein{background:#3a2530; color:#f0a9bd}
+  .pill.vegetable{background:#20322a; color:#88d5ac}
+  .pill.starch{background:#33301f; color:#e8ca82}
+  .pill.ai{background:#232f45; color:#9bbcf5}
+
+  /* App shell */
+  .app{max-width:1100px; margin:0 auto; padding:14px 14px calc(84px + var(--pad))}
+  header.topbar{
+    position:sticky; top:0; z-index:20; background:linear-gradient(var(--bg),var(--bg) 70%,transparent);
+    display:flex; align-items:center; gap:12px; padding:6px 2px 12px;
+  }
+  .brand{font-weight:750; letter-spacing:.2px; display:flex; align-items:center; gap:8px}
+  .brand .who{font-size:.78rem; color:var(--dim); font-weight:500}
+  .spacer{flex:1}
+
+  /* Bottom tab bar (mobile) becomes top-inline on desktop */
+  nav.tabs{
+    position:fixed; left:0; right:0; bottom:0; z-index:30;
+    display:flex; background:var(--bg2); border-top:1px solid var(--line);
+    padding-bottom:var(--pad);
+  }
+  nav.tabs button{
+    flex:1; background:none; border:none; color:var(--dim);
+    padding:9px 4px 8px; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:.7rem;
+  }
+  nav.tabs button .ico{font-size:1.25rem; line-height:1}
+  nav.tabs button.on{color:var(--accent)}
+
+  @media(min-width:760px){
+    nav.tabs{position:sticky; top:0; bottom:auto; border-top:none; border-bottom:1px solid var(--line);
+      border-radius:12px; margin-bottom:14px; padding:0; background:var(--bg2)}
+    nav.tabs button{flex-direction:row; gap:8px; font-size:.9rem; padding:12px 16px; border-radius:12px}
+    nav.tabs button .ico{font-size:1.05rem}
+    nav.tabs button.on{background:var(--bg3)}
+    .app{padding-bottom:40px}
+  }
+
+  /* Week planner grid */
+  .week{display:grid; grid-template-columns:1fr; gap:10px}
+  @media(min-width:640px){ .week{grid-template-columns:repeat(2,1fr)} }
+  @media(min-width:980px){ .week{grid-template-columns:repeat(4,1fr)} }
+  .day{background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:12px; min-height:118px; display:flex; flex-direction:column}
+  .day.today{border-color:var(--accent)}
+  .day .dow{font-size:.72rem; text-transform:uppercase; letter-spacing:.5px; color:var(--dim)}
+  .day .date{font-size:.72rem; color:var(--faint)}
+  .day .meal{font-weight:600; margin-top:6px; flex:1}
+  .day .meal.empty{color:var(--faint); font-weight:400; font-style:italic}
+  .day .dayactions{display:flex; gap:6px; margin-top:8px}
+
+  .grid2{display:grid; grid-template-columns:1fr; gap:14px}
+  @media(min-width:820px){ .grid2{grid-template-columns:1fr 1fr} }
+
+  .votebar{display:flex; align-items:center; gap:10px; margin-top:8px}
+  .tally{font-variant-numeric:tabular-nums; font-weight:700}
+  .voters{font-size:.75rem; color:var(--faint)}
+  .empty-state{text-align:center; color:var(--dim); padding:34px 10px}
+  .empty-state .big{font-size:2.4rem}
+
+  .modal-bg{position:fixed; inset:0; background:rgba(3,6,10,.66); z-index:50; display:flex; align-items:flex-end; justify-content:center}
+  @media(min-width:640px){ .modal-bg{align-items:center} }
+  .modal{background:var(--bg2); border:1px solid var(--line); width:100%; max-width:560px; max-height:88vh; overflow:auto;
+    border-radius:16px 16px 0 0; padding:18px}
+  @media(min-width:640px){ .modal{border-radius:16px} }
+  .modal h2{display:flex; align-items:center}
+  .modal .close{margin-left:auto; background:none;border:none;color:var(--dim);font-size:1.4rem;line-height:1}
+
+  .toast{position:fixed; left:50%; transform:translateX(-50%); bottom:calc(90px + var(--pad)); z-index:99;
+    background:var(--bg3); border:1px solid var(--line); border-radius:10px; padding:10px 16px; box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  .toast.err{border-color:var(--bad); color:#ffd7dc}
+  .toast.ok{border-color:var(--accent2)}
+  .banner{background:#3a2530; border:1px solid #5e2f3c; color:#f3c2cd; padding:10px 14px; border-radius:10px; margin-bottom:12px; font-size:.9rem}
+  .spin{width:15px;height:15px;border:2px solid var(--faint);border-top-color:var(--text);border-radius:50%;display:inline-block;animation:sp .7s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hidden{display:none !important}
+  .center{text-align:center}
+  .stack>*+*{margin-top:6px}
+  .divider{height:1px;background:var(--line);margin:14px 0}
+  code.k{background:var(--bg3);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:.85em}
+</style>
+</head>
+<body>
+
+<!-- ============ ONBOARDING / CONFIG ============ -->
+<div id="setup" class="app hidden">
+  <header class="topbar"><div class="brand">🍽️ Family Dinner Planner</div></header>
+
+  <div id="setup-connect" class="card">
+    <h2>1 · Connect to your family database</h2>
+    <p class="muted">Paste the two values from your Supabase project (Settings → API). These stay on this device only.</p>
+    <label>Supabase Project URL</label>
+    <input id="cfg-url" placeholder="https://xxxxxxxx.supabase.co" autocomplete="off" spellcheck="false" />
+    <label>Supabase anon public key</label>
+    <input id="cfg-key" placeholder="eyJhbGciOi..." autocomplete="off" spellcheck="false" />
+    <div class="divider"></div>
+    <h3>AI (optional, on the planner's PC)</h3>
+    <p class="muted">Where Ollama runs. Leave as-is if it's on this computer.</p>
+    <div class="row">
+      <div class="grow"><label>Ollama URL</label><input id="cfg-ollama" value="http://localhost:11434" spellcheck="false" /></div>
+      <div style="flex:0 0 170px"><label>Model</label><input id="cfg-model" value="llama3.1" spellcheck="false" /></div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="cfg-save">Save & continue</button>
+      <span id="cfg-status" class="muted"></span>
+    </div>
+  </div>
+
+  <div id="setup-family" class="card hidden">
+    <h2>2 · Your family</h2>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn primary" id="tab-create">Create a new family</button>
+      <button class="btn" id="tab-join">Join with a code</button>
+    </div>
+
+    <div id="pane-create">
+      <label>Family name</label>
+      <input id="new-fam-name" placeholder="The Smiths" />
+      <label>Family code <span class="faint">— your shared secret; share this with your family</span></label>
+      <div class="row">
+        <input id="new-fam-code" class="grow" placeholder="pick something long & unguessable" spellcheck="false" />
+        <button class="btn sm" id="gen-code">Generate</button>
+      </div>
+      <label>Your name</label>
+      <input id="new-fam-you" placeholder="Dad" />
+      <div style="margin-top:14px"><button class="btn good" id="do-create">Create family</button></div>
+    </div>
+
+    <div id="pane-join" class="hidden">
+      <label>Family code</label>
+      <input id="join-code" placeholder="the code someone shared with you" spellcheck="false" />
+      <label>Your name</label>
+      <input id="join-you" placeholder="Mom" />
+      <div style="margin-top:14px"><button class="btn good" id="do-join">Join family</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="main" class="app hidden">
+  <header class="topbar">
+    <div class="brand">🍽️ <span id="fam-name">Dinner</span>
+      <span class="who" id="who"></span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn sm ghost" id="btn-settings">⚙︎</button>
+  </header>
+
+  <nav class="tabs" id="nav">
+    <button data-view="plan" class="on"><span class="ico">📅</span>Plan</button>
+    <button data-view="propose"><span class="ico">🗳️</span>Propose</button>
+    <button data-view="library"><span class="ico">📖</span>Recipes</button>
+    <button data-view="family"><span class="ico">👨‍👩‍👧</span>Family</button>
+  </nav>
+
+  <div id="view"></div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ================= config & state ================= */
+const LS = 'mealplanner.cfg.v1';
+let cfg = JSON.parse(localStorage.getItem(LS) || 'null');
+let sb = null;               // supabase client (scoped by family code header)
+let currentView = 'plan';
+let weekStart = mondayOf(new Date());   // planner focus
+const db = { family:null, members:[], recipes:[], plan:[], proposals:[], votes:[] };
+let picks = { protein:[], vegetable:[], starch:[] };   // proposal seed selections
+
+/* ================= tiny helpers ================= */
+const $ = (s,r=document)=>r.querySelector(s);
+const $$ = (s,r=document)=>[...r.querySelectorAll(s)];
+const el = (t,props={},...kids)=>{const n=document.createElement(t);Object.entries(props).forEach(([k,v])=>{
+  if(k==='class')n.className=v; else if(k==='html')n.innerHTML=v; else if(k.startsWith('on'))n.addEventListener(k.slice(2),v);
+  else if(v!==false&&v!=null)n.setAttribute(k,v);});kids.flat().forEach(c=>n.append(c?.nodeType?c:document.createTextNode(c??'')));return n;};
+const esc = s=>(s??'').toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function toast(msg,kind=''){const t=el('div',{class:'toast '+kind},msg);$('#toast-root').append(t);setTimeout(()=>t.remove(),kind==='err'?4200:2200);}
+function mondayOf(d){d=new Date(d);const g=(d.getDay()+6)%7;d.setDate(d.getDate()-g);d.setHours(0,0,0,0);return d;}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+function iso(d){return new Date(d).toISOString().slice(0,10);}
+function fmtDay(d){return new Date(d).toLocaleDateString(undefined,{weekday:'short'});}
+function fmtDate(d){return new Date(d).toLocaleDateString(undefined,{month:'short',day:'numeric'});}
+function fmtRange(a,b){return fmtDate(a)+' – '+fmtDate(b);}
+const uid=()=>Math.random().toString(36).slice(2,10);
+
+/* ================= supabase wiring ================= */
+function makeClient(){
+  if(!cfg?.url||!cfg?.key||!cfg?.familyCode){sb=null;return;}
+  sb = window.supabase.createClient(cfg.url, cfg.key, {
+    global:{ headers:{ 'x-family-code': cfg.familyCode } },
+    realtime:{ params:{ eventsPerSecond:5 } }
+  });
+}
+async function sbTest(url,key){
+  try{
+    const c=window.supabase.createClient(url,key,{global:{headers:{'x-family-code':'__test__'}}});
+    const {error}=await c.from('families').select('code').limit(1);
+    // an RLS/empty result is fine; only surface hard connection/schema errors
+    if(error && /relation .* does not exist|Failed to fetch|Invalid API key/i.test(error.message)) return error.message;
+    return null;
+  }catch(e){return e.message;}
+}
+
+/* ================= data loaders ================= */
+async function loadAll(){
+  if(!sb) return;
+  const fc = cfg.familyCode;
+  const [fam,mem,rec,plan,prop,vote] = await Promise.all([
+    sb.from('families').select('*').eq('code',fc).maybeSingle(),
+    sb.from('members').select('*').eq('family_code',fc).order('created_at'),
+    sb.from('recipes').select('*').eq('family_code',fc).order('title'),
+    sb.from('plan_entries').select('*').eq('family_code',fc).order('day'),
+    sb.from('proposals').select('*').eq('family_code',fc).order('created_at',{ascending:false}),
+    sb.from('votes').select('*').eq('family_code',fc),
+  ]);
+  db.family=fam.data; db.members=mem.data||[]; db.recipes=rec.data||[];
+  db.plan=plan.data||[]; db.proposals=prop.data||[]; db.votes=vote.data||[];
+  if(db.family) $('#fam-name').textContent = db.family.name || 'Dinner';
+}
+function subscribeRealtime(){
+  if(!sb) return;
+  sb.channel('rt-'+cfg.familyCode)
+    .on('postgres_changes',{event:'*',schema:'public'},async()=>{ await loadAll(); render(); })
+    .subscribe();
+}
+
+/* ================= components (protein/veg/starch) ================= */
+const CATS=[['protein','Protein'],['vegetable','Vegetable'],['starch','Starch']];
+function comps(cat){return (db.family?.components?.[cat])||[];}
+async function saveComponents(next){
+  await sb.from('families').update({components:next}).eq('code',cfg.familyCode);
+  db.family.components=next; render();
+}
+
+/* ================= boot ================= */
+init();
+function init(){
+  if(cfg?.url&&cfg?.key&&cfg?.familyCode&&cfg?.memberName){
+    makeClient(); showMain();
+  } else if(cfg?.url&&cfg?.key){
+    showSetup(); gotoFamilyStep();
+    $('#cfg-url').value=cfg.url; $('#cfg-key').value=cfg.key;
+    $('#cfg-ollama').value=cfg.ollama||'http://localhost:11434'; $('#cfg-model').value=cfg.model||'llama3.1';
+  } else {
+    showSetup();
+  }
+}
+function showSetup(){$('#setup').classList.remove('hidden');$('#main').classList.add('hidden');wireSetup();}
+async function showMain(){
+  $('#setup').classList.add('hidden');$('#main').classList.remove('hidden');
+  $('#who').textContent='· '+cfg.memberName;
+  try{ await loadAll(); }catch(e){ toast('Load failed: '+e.message,'err'); }
+  subscribeRealtime(); wireNav(); render();
+}
+
+/* ================= setup wiring ================= */
+let setupWired=false;
+function wireSetup(){
+  if(setupWired)return; setupWired=true;
+  $('#cfg-save').addEventListener('click',async()=>{
+    const url=$('#cfg-url').value.trim().replace(/\/$/,''), key=$('#cfg-key').value.trim();
+    if(!url||!key){toast('Enter both URL and key','err');return;}
+    $('#cfg-status').innerHTML='<span class="spin"></span> testing…';
+    const err=await sbTest(url,key);
+    if(err){$('#cfg-status').textContent='';toast(err,'err');return;}
+    cfg={...(cfg||{}),url,key,ollama:$('#cfg-ollama').value.trim()||'http://localhost:11434',model:$('#cfg-model').value.trim()||'llama3.1'};
+    localStorage.setItem(LS,JSON.stringify(cfg));
+    $('#cfg-status').textContent='✓ connected'; gotoFamilyStep();
+  });
+  $('#tab-create').addEventListener('click',()=>{$('#pane-create').classList.remove('hidden');$('#pane-join').classList.add('hidden');});
+  $('#tab-join').addEventListener('click',()=>{$('#pane-join').classList.remove('hidden');$('#pane-create').classList.add('hidden');});
+  $('#gen-code').addEventListener('click',()=>{$('#new-fam-code').value=(db.family?.name||'fam')+'-'+uid()+uid();});
+  $('#do-create').addEventListener('click',doCreate);
+  $('#do-join').addEventListener('click',doJoin);
+}
+function gotoFamilyStep(){$('#setup-family').classList.remove('hidden');$('#setup-connect').scrollIntoView({behavior:'smooth'});}
+
+async function doCreate(){
+  const name=$('#new-fam-name').value.trim(), code=$('#new-fam-code').value.trim(), you=$('#new-fam-you').value.trim();
+  if(!name||!code||!you){toast('Fill in name, code, and your name','err');return;}
+  cfg={...cfg,familyCode:code,memberName:you}; localStorage.setItem(LS,JSON.stringify(cfg)); makeClient();
+  const seed={protein:['Chicken','Beef','Pork','Fish','Shrimp','Turkey','Tofu','Eggs','Beans'],
+    vegetable:['Broccoli','Green beans','Salad','Carrots','Corn','Peas','Zucchini','Peppers','Asparagus'],
+    starch:['Rice','Mashed potatoes','Fries','Pasta','Bread','Corn','Quinoa','Tortillas','Baked potato']};
+  const {error}=await sb.from('families').insert({code,name,components:seed});
+  if(error){toast('Create failed: '+error.message,'err');return;}
+  await sb.from('members').insert({family_code:code,name:you});
+  toast('Family created!','ok'); showMain();
+}
+async function doJoin(){
+  const code=$('#join-code').value.trim(), you=$('#join-you').value.trim();
+  if(!code||!you){toast('Enter the code and your name','err');return;}
+  cfg={...cfg,familyCode:code,memberName:you}; localStorage.setItem(LS,JSON.stringify(cfg)); makeClient();
+  const {data,error}=await sb.from('families').select('*').eq('code',code).maybeSingle();
+  if(error){toast('Join failed: '+error.message,'err');return;}
+  if(!data){toast('No family found for that code','err');return;}
+  const {data:mem}=await sb.from('members').select('id').eq('family_code',code).eq('name',you).maybeSingle();
+  if(!mem) await sb.from('members').insert({family_code:code,name:you});
+  toast('Joined '+data.name+'!','ok'); showMain();
+}
+
+/* ================= nav & render ================= */
+function wireNav(){
+  $$('#nav button').forEach(b=>b.addEventListener('click',()=>{
+    currentView=b.dataset.view;
+    $$('#nav button').forEach(x=>x.classList.toggle('on',x===b));
+    render();
+  }));
+  $('#btn-settings').addEventListener('click',openSettings);
+}
+function render(){
+  const v=$('#view'); v.innerHTML='';
+  if(currentView==='plan') v.append(renderPlan());
+  else if(currentView==='propose') v.append(renderPropose());
+  else if(currentView==='library') v.append(renderLibrary());
+  else if(currentView==='family') v.append(renderFamily());
+}
+
+/* ================= PLAN (calendar) ================= */
+function planFor(dateIso){return db.plan.find(p=>p.day===dateIso);}
+function renderPlan(){
+  const wrap=el('div');
+  const end=addDays(weekStart,6);
+  const thisMon=mondayOf(new Date()), nextMon=addDays(thisMon,7);
+  const nav=el('div',{class:'card'},
+    el('div',{class:'row'},
+      el('button',{class:'btn sm',onclick:()=>{weekStart=addDays(weekStart,-7);render();}},'‹ Prev'),
+      el('div',{class:'grow center'},
+        el('div',{class:'row',style:'justify-content:center;gap:8px'},
+          el('strong',{},fmtRange(weekStart,end)),
+        ),
+        el('div',{class:'row',style:'justify-content:center;gap:6px;margin-top:6px'},
+          el('button',{class:'btn sm ghost',onclick:()=>{weekStart=thisMon;render();}},'This week'),
+          el('button',{class:'btn sm ghost',onclick:()=>{weekStart=nextMon;render();}},'Next week ★'),
+        )
+      ),
+      el('button',{class:'btn sm',onclick:()=>{weekStart=addDays(weekStart,7);render();}},'Next ›'),
+    )
+  );
+  wrap.append(nav);
+
+  const grid=el('div',{class:'week'});
+  for(let i=0;i<7;i++){
+    const d=addDays(weekStart,i), di=iso(d), entry=planFor(di);
+    const isToday=di===iso(new Date());
+    const card=el('div',{class:'day'+(isToday?' today':'')},
+      el('div',{class:'row',style:'justify-content:space-between'},
+        el('span',{class:'dow'},fmtDay(d)), el('span',{class:'date'},fmtDate(d))),
+      el('div',{class:'meal'+(entry?'':' empty')},entry?entry.title:'—'),
+      el('div',{class:'dayactions'},
+        el('button',{class:'btn sm ghost',onclick:()=>pickMealFor(di)}, entry?'Change':'Add'),
+        entry?el('button',{class:'btn sm ghost',onclick:()=>clearMeal(di)},'✕'):''
+      )
+    );
+    grid.append(card);
+  }
+  wrap.append(grid);
+  wrap.append(el('p',{class:'faint center',style:'margin-top:8px'},'Tip: “Next week ★” is your main planning view.'));
+  return wrap;
+}
+async function clearMeal(di){ await sb.from('plan_entries').delete().eq('family_code',cfg.familyCode).eq('day',di); await loadAll(); render(); }
+async function setMeal(di,title,recipe_id){
+  await sb.from('plan_entries').upsert({family_code:cfg.familyCode,day:di,title,recipe_id:recipe_id||null},{onConflict:'family_code,day'});
+  await loadAll(); render(); closeModal();
+}
+function pickMealFor(di){
+  const body=el('div');
+  body.append(el('label',{},'Type a dinner'),
+    (()=>{const i=el('input',{placeholder:'e.g. Taco night',id:'mm-custom'});return i;})());
+  body.append(el('div',{class:'row',style:'margin-top:8px'},
+    el('button',{class:'btn primary sm',onclick:()=>{const t=$('#mm-custom').value.trim();if(t)setMeal(di,t);}},'Save')));
+  if(db.recipes.length){
+    body.append(el('div',{class:'divider'}));
+    body.append(el('label',{},'…or pick a saved recipe'));
+    const list=el('div',{class:'stack'});
+    db.recipes.forEach(r=>list.append(
+      el('button',{class:'btn ghost',style:'justify-content:flex-start;width:100%',onclick:()=>setMeal(di,r.title,r.id)},
+        '📖 '+r.title)
+    ));
+    body.append(list);
+  }
+  openModal('Dinner for '+fmtDate(di),body);
+}
+
+/* ================= LIBRARY ================= */
+function renderLibrary(){
+  const wrap=el('div');
+  wrap.append(el('div',{class:'row',style:'margin-bottom:12px'},
+    el('h2',{class:'grow',style:'margin:0'},'Recipe library'),
+    el('button',{class:'btn primary sm',onclick:()=>editRecipe(null)},'＋ Add recipe')));
+  if(!db.recipes.length){
+    wrap.append(el('div',{class:'empty-state'},el('div',{class:'big'},'📖'),
+      el('p',{},'No recipes yet. Add your HelloFresh-inspired favorites so the planner and AI can use them.')));
+    return wrap;
+  }
+  const grid=el('div',{class:'grid2'});
+  db.recipes.forEach(r=>{
+    const c=el('div',{class:'card'},
+      el('div',{class:'row',style:'justify-content:space-between;align-items:flex-start'},
+        el('h3',{class:'grow',style:'margin:0'},r.title),
+        el('button',{class:'btn sm ghost',onclick:()=>editRecipe(r)},'Edit')),
+      el('div',{class:'row',style:'gap:6px;margin:8px 0'},
+        r.protein?el('span',{class:'pill protein'},r.protein):'',
+        r.vegetable?el('span',{class:'pill vegetable'},r.vegetable):'',
+        r.starch?el('span',{class:'pill starch'},r.starch):''),
+      r.notes?el('p',{class:'muted',style:'margin:.3em 0'},r.notes):'',
+      (r.tags&&r.tags.length)?el('div',{class:'row',style:'gap:5px'},...r.tags.map(t=>el('span',{class:'tag'},t))):'',
+      r.source?el('div',{class:'faint',style:'font-size:.75rem;margin-top:6px'},'source: '+r.source):''
+    );
+    grid.append(c);
+  });
+  wrap.append(grid);
+  return wrap;
+}
+function editRecipe(r){
+  const f=r||{};
+  const opt=(cat,val)=>{
+    const sel=el('select',{id:'r-'+cat});
+    sel.append(el('option',{value:''},'—'));
+    comps(cat).forEach(o=>sel.append(el('option',{value:o,...(o===val?{selected:''}:{})},o)));
+    // allow custom value not in list
+    if(val&&!comps(cat).includes(val)) sel.append(el('option',{value:val,selected:''},val));
+    return sel;
+  };
+  const body=el('div');
+  body.append(el('label',{},'Title'), el('input',{id:'r-title',value:f.title||'',placeholder:'Honey garlic chicken'}));
+  body.append(el('div',{class:'row'},
+    el('div',{class:'grow'},el('label',{},'Protein'),opt('protein',f.protein)),
+    el('div',{class:'grow'},el('label',{},'Vegetable'),opt('vegetable',f.vegetable)),
+    el('div',{class:'grow'},el('label',{},'Starch'),opt('starch',f.starch))));
+  body.append(el('label',{},'Ingredients'), el('textarea',{id:'r-ing',placeholder:'One per line'},f.ingredients||''));
+  body.append(el('label',{},'Steps / notes'), el('textarea',{id:'r-steps'},f.steps||''));
+  body.append(el('label',{},'Tags (comma separated)'), el('input',{id:'r-tags',value:(f.tags||[]).join(', '),placeholder:'quick, kid-favorite'}));
+  body.append(el('label',{},'Source'), el('input',{id:'r-src',value:f.source||'',placeholder:'HelloFresh-inspired'}));
+  const actions=el('div',{class:'row',style:'margin-top:16px'},
+    el('button',{class:'btn good',onclick:async()=>{
+      const rec={family_code:cfg.familyCode,title:$('#r-title').value.trim(),
+        protein:$('#r-protein').value,vegetable:$('#r-vegetable').value,starch:$('#r-starch').value,
+        ingredients:$('#r-ing').value,steps:$('#r-steps').value,
+        tags:$('#r-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
+        source:$('#r-src').value,created_by:cfg.memberName};
+      if(!rec.title){toast('Give it a title','err');return;}
+      if(r){await sb.from('recipes').update(rec).eq('id',r.id);}
+      else{await sb.from('recipes').insert(rec);}
+      await loadAll();render();closeModal();toast('Saved','ok');
+    }},'Save recipe'),
+    el('div',{class:'grow'}),
+    r?el('button',{class:'btn ghost',style:'color:var(--bad)',onclick:async()=>{
+      if(!confirm('Delete this recipe?'))return;
+      await sb.from('recipes').delete().eq('id',r.id);await loadAll();render();closeModal();
+    }},'Delete'):''
+  );
+  body.append(actions);
+  openModal(r?'Edit recipe':'New recipe',body);
+}
+
+/* ================= PROPOSE & VOTE ================= */
+function renderPropose(){
+  const wrap=el('div');
+  const wk=iso(weekStart);
+  // --- component picker ---
+  const picker=el('div',{class:'card'});
+  picker.append(el('h2',{},'What are we in the mood for?'),
+    el('p',{class:'muted'},'Tap what you want. Leave a category empty for “anything”. Then get proposals for your family to vote on.'));
+  CATS.forEach(([cat,label])=>{
+    const box=el('div',{style:'margin-bottom:10px'});
+    box.append(el('div',{class:'muted',style:'font-size:.8rem;margin-bottom:5px'},label));
+    const chips=el('div',{class:'row',style:'gap:7px'});
+    comps(cat).forEach(o=>{
+      const on=picks[cat].includes(o);
+      chips.append(el('span',{class:'chip'+(on?' on':''),onclick:()=>{
+        picks[cat]=on?picks[cat].filter(x=>x!==o):[...picks[cat],o]; render();
+      }},o));
+    });
+    box.append(chips);
+    picker.append(box);
+  });
+  picker.append(el('div',{class:'row',style:'margin-top:6px'},
+    el('button',{class:'btn primary',id:'btn-local',onclick:proposeLocal},'✨ Propose from our stuff'),
+    el('button',{class:'btn good',id:'btn-ai',onclick:proposeAI},'🤖 Invent new dinners (AI)'),
+    el('button',{class:'btn ghost sm',onclick:()=>{picks={protein:[],vegetable:[],starch:[]};render();}},'Clear')
+  ));
+  picker.append(el('div',{id:'ai-status',class:'muted',style:'margin-top:8px'}));
+  wrap.append(picker);
+
+  // --- proposals for this week ---
+  const weekProps=db.proposals.filter(p=>p.week_of===wk);
+  const head=el('div',{class:'row',style:'margin:4px 0 10px'},
+    el('h2',{class:'grow',style:'margin:0'},'Proposals · week of '+fmtDate(weekStart)),
+    weekProps.length?el('button',{class:'btn sm ghost',style:'color:var(--bad)',onclick:clearProposals},'Clear all'):'');
+  wrap.append(head);
+
+  if(!weekProps.length){
+    wrap.append(el('div',{class:'empty-state'},el('div',{class:'big'},'🗳️'),
+      el('p',{},'No proposals yet for this week. Pick some components above and hit Propose.')));
+    return wrap;
+  }
+  // sort by score
+  const scored=weekProps.map(p=>({p,score:voteScore(p.id)})).sort((a,b)=>b.score-a.score);
+  const grid=el('div',{class:'grid2'});
+  scored.forEach(({p})=>grid.append(proposalCard(p)));
+  wrap.append(grid);
+  return wrap;
+}
+function votesFor(pid){return db.votes.filter(v=>v.proposal_id===pid);}
+function voteScore(pid){return votesFor(pid).reduce((s,v)=>s+v.value,0);}
+function myVote(pid){return votesFor(pid).find(v=>v.member_name===cfg.memberName);}
+function proposalCard(p){
+  const vs=votesFor(p.id), up=vs.filter(v=>v.value>0), down=vs.filter(v=>v.value<0);
+  const mine=myVote(p.id);
+  const c=el('div',{class:'card'},
+    el('div',{class:'row',style:'justify-content:space-between;align-items:flex-start'},
+      el('h3',{class:'grow',style:'margin:0'},p.title),
+      p.origin==='ai'?el('span',{class:'pill ai'},'AI'):''),
+    el('div',{class:'row',style:'gap:6px;margin:8px 0'},
+      p.protein?el('span',{class:'pill protein'},p.protein):'',
+      p.vegetable?el('span',{class:'pill vegetable'},p.vegetable):'',
+      p.starch?el('span',{class:'pill starch'},p.starch):''),
+    p.description?el('p',{class:'muted',style:'margin:.3em 0'},p.description):'',
+    el('div',{class:'votebar'},
+      el('button',{class:'btn sm'+(mine&&mine.value>0?' good':''),onclick:()=>castVote(p.id,1)},'👍 '+up.length),
+      el('button',{class:'btn sm'+(mine&&mine.value<0?' ':''),style:mine&&mine.value<0?'border-color:var(--bad)':'',onclick:()=>castVote(p.id,-1)},'👎 '+down.length),
+      el('span',{class:'grow'}),
+      el('button',{class:'btn sm ghost',onclick:()=>addProposalToPlan(p)},'📅 Add to plan')
+    ),
+    up.length?el('div',{class:'voters'},'👍 '+up.map(v=>v.member_name).join(', ')):'',
+    (p.ingredients)?el('details',{style:'margin-top:8px'},el('summary',{class:'faint'},'ingredients'),el('p',{class:'muted',style:'white-space:pre-wrap'},p.ingredients)):''
+  );
+  return c;
+}
+async function castVote(pid,val){
+  const mine=myVote(pid);
+  if(mine&&mine.value===val){ await sb.from('votes').delete().eq('id',mine.id); }
+  else{ await sb.from('votes').upsert({family_code:cfg.familyCode,proposal_id:pid,member_name:cfg.memberName,value:val},{onConflict:'proposal_id,member_name'}); }
+  await loadAll(); render();
+}
+function addProposalToPlan(p){
+  const body=el('div');
+  body.append(el('p',{class:'muted'},'Put “'+esc(p.title)+'” on which night?'));
+  const grid=el('div',{class:'week'});
+  for(let i=0;i<7;i++){
+    const d=addDays(weekStart,i),di=iso(d),entry=planFor(di);
+    grid.append(el('button',{class:'day',style:'text-align:left;cursor:pointer',onclick:()=>setMeal(di,p.title,null)},
+      el('div',{class:'dow'},fmtDay(d)),el('div',{class:'date'},fmtDate(d)),
+      el('div',{class:'meal'+(entry?'':' empty')},entry?entry.title:'—')));
+  }
+  body.append(grid);
+  openModal('Add to plan',body);
+}
+async function clearProposals(){
+  if(!confirm('Clear all proposals for this week?'))return;
+  await sb.from('proposals').delete().eq('family_code',cfg.familyCode).eq('week_of',iso(weekStart));
+  await loadAll(); render();
+}
+
+/* ---- local proposer: combine picks + recipes + prefs ---- */
+function proposeLocal(){
+  const wk=iso(weekStart);
+  const chosen=[];
+  const pick=arr=>arr.length?arr[Math.floor(Math.random()*arr.length)]:'';
+  const proteins=picks.protein.length?picks.protein:comps('protein');
+  const vegs=picks.vegetable.length?picks.vegetable:comps('vegetable');
+  const starches=picks.starch.length?picks.starch:comps('starch');
+  const dislikes=new Set(db.members.flatMap(m=>(m.prefs?.dislikes||[]).map(s=>s.toLowerCase())));
+
+  // 1) matching saved recipes first
+  const matches=db.recipes.filter(r=>
+    (!picks.protein.length||picks.protein.includes(r.protein))&&
+    (!picks.vegetable.length||picks.vegetable.includes(r.vegetable))&&
+    (!picks.starch.length||picks.starch.includes(r.starch)));
+  matches.slice(0,3).forEach(r=>chosen.push({title:r.title,protein:r.protein,vegetable:r.vegetable,starch:r.starch,
+    description:'From your library'+(r.source?' ('+r.source+')':''),ingredients:r.ingredients,origin:'local'}));
+
+  // 2) fill with fresh combos, avoiding disliked proteins
+  let guard=0;
+  while(chosen.length<5&&guard++<40){
+    const pr=pick(proteins.filter(p=>!dislikes.has(p.toLowerCase())))||pick(proteins);
+    const vg=pick(vegs), st=pick(starches);
+    const title=`${pr} with ${st}`+(vg?` & ${vg}`:'');
+    if(chosen.some(c=>c.title===title))continue;
+    chosen.push({title,protein:pr,vegetable:vg,starch:st,description:'Simple combo from your components',ingredients:'',origin:'local'});
+  }
+  insertProposals(chosen.slice(0,5),wk);
+}
+
+/* ---- AI proposer via Ollama ---- */
+async function proposeAI(){
+  const st=$('#ai-status'); const btn=$('#btn-ai');
+  const base=(cfg.ollama||'http://localhost:11434').replace(/\/$/,'');
+  const model=cfg.model||'llama3.1';
+  btn.disabled=true; st.innerHTML='<span class="spin"></span> Asking your local model to invent dinners…';
+  try{
+    const prompt=buildAIPrompt();
+    const res=await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model,stream:false,format:'json',
+        messages:[
+          {role:'system',content:'You are a helpful family dinner planner. Reply ONLY with JSON of the form {"dinners":[{"title":"","protein":"","vegetable":"","starch":"","description":"","ingredients":""}]}. Give 5 dinners. Keep titles short and appetizing. description = one sentence.'},
+          {role:'user',content:prompt}
+        ]})});
+    if(!res.ok) throw new Error('Ollama HTTP '+res.status);
+    const data=await res.json();
+    const content=data.message?.content||data.response||'';
+    let parsed; try{parsed=JSON.parse(content);}catch{ parsed=JSON.parse(content.slice(content.indexOf('{'),content.lastIndexOf('}')+1)); }
+    const dinners=(parsed.dinners||parsed.meals||[]).slice(0,6).map(d=>({
+      title:d.title||d.name||'Dinner',protein:d.protein||'',vegetable:d.vegetable||d.veg||'',
+      starch:d.starch||'',description:d.description||'',ingredients:Array.isArray(d.ingredients)?d.ingredients.join('\n'):(d.ingredients||''),origin:'ai'}));
+    if(!dinners.length) throw new Error('Model returned no dinners');
+    await insertProposals(dinners,iso(weekStart));
+    st.textContent='';
+  }catch(e){
+    st.innerHTML='';
+    const hint = /Failed to fetch|NetworkError|ERR_/i.test(e.message)
+      ? 'Could not reach Ollama. Make sure it\'s running on the planner\'s PC, and that OLLAMA_ORIGINS allows this site (see README). Model tries: '+model
+      : e.message;
+    toast('AI: '+hint,'err');
+  }finally{ btn.disabled=false; }
+}
+function buildAIPrompt(){
+  const want=CATS.map(([c,l])=>picks[c].length?`${l}: ${picks[c].join(' or ')}`:null).filter(Boolean).join('; ')||'no strong preference';
+  const likes=db.members.map(m=>`${m.name}: likes ${(m.prefs?.likes||[]).join(', ')||'—'}; dislikes ${(m.prefs?.dislikes||[]).join(', ')||'—'}`).join(' | ');
+  const lib=db.recipes.slice(0,25).map(r=>r.title).join(', ')||'none yet';
+  const recent=db.plan.slice(-10).map(p=>p.title).join(', ')||'none';
+  return `Propose 5 dinner ideas for a family for the week of ${fmtDate(weekStart)}.
+Cravings tonight: ${want}.
+Family preferences: ${likes}.
+Dinners we already have as recipes (feel free to riff, but favor variety): ${lib}.
+Recently eaten (avoid repeating): ${recent}.
+Mix a couple of familiar ideas with a couple of new ones. Use everyday ingredients.`;
+}
+async function insertProposals(list,wk){
+  const rows=list.map(d=>({family_code:cfg.familyCode,week_of:wk,title:d.title,protein:d.protein,vegetable:d.vegetable,
+    starch:d.starch,description:d.description,ingredients:d.ingredients,origin:d.origin,created_by:cfg.memberName}));
+  const {error}=await sb.from('proposals').insert(rows);
+  if(error){toast('Save failed: '+error.message,'err');return;}
+  await loadAll(); render();
+  toast(rows.length+' proposals added — vote away!','ok');
+}
+
+/* ================= FAMILY ================= */
+function renderFamily(){
+  const wrap=el('div');
+  // members
+  const mcard=el('div',{class:'card'});
+  mcard.append(el('div',{class:'row'},el('h2',{class:'grow',style:'margin:0'},'Who\'s in the family'),
+    el('button',{class:'btn sm primary',onclick:()=>editMember(null)},'＋ Add')));
+  db.members.forEach(m=>{
+    mcard.append(el('div',{class:'row',style:'padding:8px 0;border-top:1px solid var(--line)'},
+      el('div',{class:'grow'},
+        el('strong',{},m.name+(m.name===cfg.memberName?' (you)':'')),
+        el('div',{class:'faint',style:'font-size:.8rem'},
+          'likes: '+((m.prefs?.likes||[]).join(', ')||'—')+' · dislikes: '+((m.prefs?.dislikes||[]).join(', ')||'—'))),
+      el('button',{class:'btn sm ghost',onclick:()=>editMember(m)},'Edit')));
+  });
+  wrap.append(mcard);
+
+  // components editor
+  const ccard=el('div',{class:'card'});
+  ccard.append(el('h2',{},'Dinner building blocks'),
+    el('p',{class:'muted'},'These are the options everyone picks from when proposing. Add your family\'s favorites.'));
+  CATS.forEach(([cat,label])=>{
+    const box=el('div',{style:'margin-bottom:12px'});
+    box.append(el('div',{class:'row'},el('strong',{class:'grow'},label)));
+    const chips=el('div',{class:'row',style:'gap:7px;margin-top:6px'});
+    comps(cat).forEach(o=>chips.append(el('span',{class:'chip'},o,
+      el('span',{class:'x',onclick:async()=>{await saveComponents({...db.family.components,[cat]:comps(cat).filter(x=>x!==o)});}},'✕'))));
+    const add=el('input',{placeholder:'add '+label.toLowerCase()+' + Enter',style:'max-width:220px',
+      onkeydown:async e=>{if(e.key==='Enter'){const v=e.target.value.trim();if(v&&!comps(cat).includes(v)){await saveComponents({...db.family.components,[cat]:[...comps(cat),v]});}}}});
+    chips.append(add);
+    box.append(chips);
+    ccard.append(box);
+  });
+  wrap.append(ccard);
+
+  // share
+  const scard=el('div',{class:'card'});
+  scard.append(el('h2',{},'Invite your family'),
+    el('p',{class:'muted'},'They open this same web address, choose “Join with a code”, and enter:'),
+    el('div',{class:'row'},
+      el('code',{class:'k',style:'font-size:1rem'},cfg.familyCode),
+      el('button',{class:'btn sm',onclick:()=>{navigator.clipboard?.writeText(cfg.familyCode);toast('Code copied','ok');}},'Copy code')),
+    el('p',{class:'faint',style:'margin-top:10px;font-size:.8rem'},'Keep this code private — anyone with it can see and edit your family\'s meals.'));
+  wrap.append(scard);
+  return wrap;
+}
+function editMember(m){
+  const f=m||{}, p=f.prefs||{};
+  const body=el('div');
+  body.append(el('label',{},'Name'),el('input',{id:'m-name',value:f.name||''}));
+  body.append(el('label',{},'Likes (comma separated)'),el('input',{id:'m-likes',value:(p.likes||[]).join(', '),placeholder:'pasta, tacos, chicken'}));
+  body.append(el('label',{},'Dislikes'),el('input',{id:'m-dislikes',value:(p.dislikes||[]).join(', '),placeholder:'mushrooms, fish'}));
+  body.append(el('label',{},'Notes / allergies'),el('textarea',{id:'m-notes'},p.notes||''));
+  body.append(el('div',{class:'row',style:'margin-top:16px'},
+    el('button',{class:'btn good',onclick:async()=>{
+      const rec={family_code:cfg.familyCode,name:$('#m-name').value.trim(),
+        prefs:{likes:$('#m-likes').value.split(',').map(s=>s.trim()).filter(Boolean),
+          dislikes:$('#m-dislikes').value.split(',').map(s=>s.trim()).filter(Boolean),notes:$('#m-notes').value}};
+      if(!rec.name){toast('Name required','err');return;}
+      if(m)await sb.from('members').update(rec).eq('id',m.id);
+      else await sb.from('members').insert(rec);
+      await loadAll();render();closeModal();
+    }},'Save'),
+    el('div',{class:'grow'}),
+    m?el('button',{class:'btn ghost',style:'color:var(--bad)',onclick:async()=>{
+      if(!confirm('Remove '+m.name+'?'))return;
+      await sb.from('members').delete().eq('id',m.id);await loadAll();render();closeModal();
+    }},'Remove'):''
+  ));
+  openModal(m?'Edit member':'Add member',body);
+}
+
+/* ================= SETTINGS ================= */
+function openSettings(){
+  const body=el('div');
+  body.append(el('label',{},'You are'),
+    (()=>{const s=el('select',{id:'set-me'});db.members.forEach(m=>s.append(el('option',{value:m.name,...(m.name===cfg.memberName?{selected:''}:{})},m.name)));return s;})());
+  body.append(el('div',{class:'divider'}));
+  body.append(el('label',{},'Ollama URL'),el('input',{id:'set-ollama',value:cfg.ollama||''}));
+  body.append(el('label',{},'Model'),el('input',{id:'set-model',value:cfg.model||''}));
+  body.append(el('div',{class:'row',style:'margin-top:8px'},
+    el('button',{class:'btn sm',onclick:testOllama},'Test AI connection'),
+    el('span',{id:'set-ai-status',class:'muted'})));
+  body.append(el('div',{class:'divider'}));
+  body.append(el('div',{class:'row'},
+    el('button',{class:'btn good',onclick:async()=>{
+      cfg.memberName=$('#set-me').value; cfg.ollama=$('#set-ollama').value.trim(); cfg.model=$('#set-model').value.trim();
+      localStorage.setItem(LS,JSON.stringify(cfg)); $('#who').textContent='· '+cfg.memberName;
+      closeModal(); render(); toast('Saved','ok');
+    }},'Save'),
+    el('div',{class:'grow'}),
+    el('button',{class:'btn ghost',style:'color:var(--bad)',onclick:()=>{
+      if(!confirm('Sign out of this family on this device? Your data stays in the cloud.'))return;
+      localStorage.removeItem(LS); location.reload();
+    }},'Leave / switch family')));
+  openModal('Settings',body);
+}
+async function testOllama(){
+  const s=$('#set-ai-status'); s.innerHTML='<span class="spin"></span> testing…';
+  const base=$('#set-ollama').value.trim().replace(/\/$/,'');
+  try{
+    const r=await fetch(base+'/api/tags'); if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json(); const models=(d.models||[]).map(m=>m.name).join(', ');
+    s.innerHTML='✓ connected. Models: '+(models||'none pulled yet');
+  }catch(e){ s.innerHTML='<span style="color:var(--bad)">✗ '+esc(e.message)+' — check it\'s running & OLLAMA_ORIGINS</span>'; }
+}
+
+/* ================= modal ================= */
+function openModal(title,body){
+  closeModal();
+  const bg=el('div',{class:'modal-bg',onclick:e=>{if(e.target===bg)closeModal();}},
+    el('div',{class:'modal'},
+      el('h2',{},title,el('button',{class:'close',onclick:closeModal},'✕')),
+      body));
+  $('#modal-root').append(bg);
+}
+function closeModal(){$('#modal-root').innerHTML='';}
+</script>
+</body>
+</html>
