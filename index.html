@@ -471,7 +471,9 @@ function renderLibrary(){
   const wrap=el('div');
   wrap.append(el('div',{class:'row',style:'margin-bottom:12px'},
     el('h2',{class:'grow',style:'margin:0'},'Recipe library'),
-    el('button',{class:'btn primary sm',onclick:()=>editRecipe(null)},'＋ Add recipe')));
+    el('button',{class:'btn sm',onclick:importFromPhoto},'📷 From photo'),
+    el('button',{class:'btn sm',onclick:importFromText},'📋 Paste'),
+    el('button',{class:'btn primary sm',onclick:()=>editRecipe(null)},'＋ Add')));
   if(!db.recipes.length){
     wrap.append(el('div',{class:'empty-state'},el('div',{class:'big'},'📖'),
       el('p',{},'No recipes yet. Add your HelloFresh-inspired favorites so the planner and AI can use them.')));
@@ -524,18 +526,73 @@ function editRecipe(r){
         tags:$('#r-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
         source:$('#r-src').value,created_by:cfg.memberName};
       if(!rec.title){toast('Give it a title','err');return;}
-      if(r){await sb.from('recipes').update(rec).eq('id',r.id);}
+      if(r&&r.id){await sb.from('recipes').update(rec).eq('id',r.id);}
       else{await sb.from('recipes').insert(rec);}
       await loadAll();render();closeModal();toast('Saved','ok');
     }},'Save recipe'),
     el('div',{class:'grow'}),
-    r?el('button',{class:'btn ghost',style:'color:var(--bad)',onclick:async()=>{
+    (r&&r.id)?el('button',{class:'btn ghost',style:'color:var(--bad)',onclick:async()=>{
       if(!confirm('Delete this recipe?'))return;
       await sb.from('recipes').delete().eq('id',r.id);await loadAll();render();closeModal();
     }},'Delete'):''
   );
   body.append(actions);
-  openModal(r?'Edit recipe':'New recipe',body);
+  openModal((r&&r.id)?'Edit recipe':'New recipe',body);
+}
+
+/* ---- recipe importers (photo / paste) via local Ollama ---- */
+const RECIPE_SYS='You extract a dinner recipe into JSON with EXACTLY these keys: {"title":"","protein":"","vegetable":"","starch":"","ingredients":"","steps":"","tags":[]}. '
+  +'protein/vegetable/starch = the single main one of each, short & capitalized (e.g. "Chicken", "Green beans", "Mashed potatoes"); empty string if none. '
+  +'ingredients = each item with quantity on its own line. steps = numbered lines. tags = a few short lowercase tags. Reply with ONLY the JSON, nothing else.';
+function fileToB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
+function loadingModal(msg){
+  openModal('Reading recipe…', el('div',{class:'center',style:'padding:20px'},
+    el('div',{class:'spin',style:'width:26px;height:26px'}),
+    el('p',{class:'muted',style:'margin-top:14px'},msg)));
+}
+async function aiParseRecipe({images,text}){
+  const base=(cfg.ollama||'http://localhost:11434').replace(/\/$/,'');
+  const model = images ? (cfg.visionModel||'llama3.2-vision') : (cfg.model||'llama3.1');
+  const userMsg = { role:'user', content: text ? ('Recipe:\n'+text) : 'Extract the recipe shown in this photo of a recipe card.' };
+  if(images) userMsg.images = images;
+  const res=await fetch(base+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model,stream:false,format:'json',messages:[{role:'system',content:RECIPE_SYS},userMsg]})});
+  if(!res.ok) throw new Error('Ollama HTTP '+res.status+(res.status===404?' — model "'+model+'" not pulled? run: ollama pull '+model:''));
+  const data=await res.json();
+  const content=data.message?.content||data.response||'';
+  let o; try{o=JSON.parse(content);}catch{ o=JSON.parse(content.slice(content.indexOf('{'),content.lastIndexOf('}')+1)); }
+  return { title:o.title||o.name||'', protein:o.protein||'', vegetable:o.vegetable||o.veg||'', starch:o.starch||o.carb||'',
+    ingredients:Array.isArray(o.ingredients)?o.ingredients.join('\n'):(o.ingredients||''),
+    steps:Array.isArray(o.steps)?o.steps.map((s,i)=>(i+1)+'. '+s).join('\n'):(o.steps||''),
+    tags:Array.isArray(o.tags)?o.tags:[], source:'HelloFresh' };
+}
+function importFromPhoto(){
+  const inp=el('input',{type:'file',accept:'image/*',capture:'environment',style:'display:none'});
+  inp.addEventListener('change',async()=>{
+    const file=inp.files&&inp.files[0]; inp.remove(); if(!file)return;
+    loadingModal('Your local vision model is reading the card… (first run can take a bit)');
+    try{ const b64=await fileToB64(file); const rec=await aiParseRecipe({images:[b64]}); closeModal(); editRecipe(rec); }
+    catch(e){ closeModal(); toast(photoErr(e),'err'); }
+  });
+  document.body.append(inp); inp.click();
+}
+function importFromText(){
+  const ta=el('textarea',{id:'imp-text',placeholder:'Paste the recipe text here (from a card, email, or website)…',style:'min-height:160px'});
+  const body=el('div');
+  body.append(el('p',{class:'muted'},'Paste a recipe and your local AI will fill in the fields for you to review.'),ta,
+    el('div',{class:'row',style:'margin-top:12px'},
+      el('button',{class:'btn primary',onclick:async()=>{
+        const t=$('#imp-text').value.trim(); if(!t){toast('Paste some text first','err');return;}
+        loadingModal('Parsing the recipe with your local model…');
+        try{ const rec=await aiParseRecipe({text:t}); closeModal(); editRecipe(rec); }
+        catch(e){ closeModal(); toast(photoErr(e),'err'); }
+      }},'Parse it')));
+  openModal('Paste a recipe',body);
+}
+function photoErr(e){
+  return /Failed to fetch|NetworkError|ERR_/i.test(e.message)
+    ? 'Could not reach Ollama on this device. Photo/paste import needs Ollama running here (see README). '+e.message
+    : e.message;
 }
 
 /* ================= PROPOSE & VOTE ================= */
@@ -799,14 +856,15 @@ function openSettings(){
     (()=>{const s=el('select',{id:'set-me'});db.members.forEach(m=>s.append(el('option',{value:m.name,...(m.name===cfg.memberName?{selected:''}:{})},m.name)));return s;})());
   body.append(el('div',{class:'divider'}));
   body.append(el('label',{},'Ollama URL'),el('input',{id:'set-ollama',value:cfg.ollama||''}));
-  body.append(el('label',{},'Model'),el('input',{id:'set-model',value:cfg.model||''}));
+  body.append(el('label',{},'Text model (proposals)'),el('input',{id:'set-model',value:cfg.model||''}));
+  body.append(el('label',{},'Vision model (photo import)'),el('input',{id:'set-vmodel',value:cfg.visionModel||'llama3.2-vision'}));
   body.append(el('div',{class:'row',style:'margin-top:8px'},
     el('button',{class:'btn sm',onclick:testOllama},'Test AI connection'),
     el('span',{id:'set-ai-status',class:'muted'})));
   body.append(el('div',{class:'divider'}));
   body.append(el('div',{class:'row'},
     el('button',{class:'btn good',onclick:async()=>{
-      cfg.memberName=$('#set-me').value; cfg.ollama=$('#set-ollama').value.trim(); cfg.model=$('#set-model').value.trim();
+      cfg.memberName=$('#set-me').value; cfg.ollama=$('#set-ollama').value.trim(); cfg.model=$('#set-model').value.trim(); cfg.visionModel=$('#set-vmodel').value.trim();
       localStorage.setItem(LS,JSON.stringify(cfg)); $('#who').textContent='· '+cfg.memberName;
       closeModal(); render(); toast('Saved','ok');
     }},'Save'),
