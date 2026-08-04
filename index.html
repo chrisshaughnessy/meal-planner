@@ -609,23 +609,28 @@ function importFromText(){
       }},'Parse it')));
   openModal('Paste a recipe',body);
 }
+async function doImportRecipes(text){
+  let arr; try{arr=JSON.parse(text);}catch(e){toast('That isn\'t valid JSON: '+e.message,'err');return;}
+  if(!Array.isArray(arr)){toast('Expected a JSON array [ ... ]','err');return;}
+  const rows=arr.map(d=>({family_code:cfg.familyCode,title:(d.title||'').toString(),protein:d.protein||'',vegetable:d.vegetable||d.veg||'',
+    starch:d.starch||'',ingredients:Array.isArray(d.ingredients)?d.ingredients.join('\n'):(d.ingredients||''),
+    steps:Array.isArray(d.steps)?d.steps.join('\n'):(d.steps||''),tags:Array.isArray(d.tags)?d.tags:[],source:d.source||'',created_by:cfg.memberName}))
+    .filter(r=>r.title);
+  if(!rows.length){toast('No recipes with a title found','err');return;}
+  const {error}=await sb.from('recipes').insert(rows);
+  if(error){toast('Import failed: '+error.message,'err');return;}
+  await loadAll();render();closeModal();toast('Imported '+rows.length+' recipes','ok');
+}
 function importFromJSON(){
   const body=el('div');
-  body.append(el('p',{class:'muted'},'Paste a JSON array of recipes (each: title, protein, vegetable, starch, ingredients, steps, tags, source). Great for loading a batch at once.'),
-    el('textarea',{id:'imp-json',placeholder:'[ { "title": "...", "protein": "Chicken", ... } ]',style:'min-height:180px;font-family:monospace;font-size:.8rem'}),
+  const fileInp=el('input',{type:'file',accept:'.json,application/json',style:'display:none'});
+  fileInp.addEventListener('change',async()=>{ const f=fileInp.files&&fileInp.files[0]; if(!f)return; doImportRecipes(await f.text()); });
+  body.append(el('p',{class:'muted'},'Load a JSON file of recipes, or paste the JSON below.'),
+    el('div',{class:'row',style:'margin-bottom:10px'},
+      el('button',{class:'btn',onclick:()=>fileInp.click()},'📁 Choose a .json file'), fileInp),
+    el('textarea',{id:'imp-json',placeholder:'[ { "title": "...", "protein": "Chicken", ... } ]',style:'min-height:150px;font-family:monospace;font-size:.8rem'}),
     el('div',{class:'row',style:'margin-top:12px'},
-      el('button',{class:'btn primary',onclick:async()=>{
-        let arr; try{arr=JSON.parse($('#imp-json').value);}catch(e){toast('That isn\'t valid JSON: '+e.message,'err');return;}
-        if(!Array.isArray(arr)){toast('Expected a JSON array [ ... ]','err');return;}
-        const rows=arr.map(d=>({family_code:cfg.familyCode,title:(d.title||'').toString(),protein:d.protein||'',vegetable:d.vegetable||d.veg||'',
-          starch:d.starch||'',ingredients:Array.isArray(d.ingredients)?d.ingredients.join('\n'):(d.ingredients||''),
-          steps:Array.isArray(d.steps)?d.steps.join('\n'):(d.steps||''),tags:Array.isArray(d.tags)?d.tags:[],source:d.source||'',created_by:cfg.memberName}))
-          .filter(r=>r.title);
-        if(!rows.length){toast('No recipes with a title found','err');return;}
-        const {error}=await sb.from('recipes').insert(rows);
-        if(error){toast('Import failed: '+error.message,'err');return;}
-        await loadAll();render();closeModal();toast('Imported '+rows.length+' recipes','ok');
-      }},'Import all')));
+      el('button',{class:'btn primary',onclick:async()=>{ await doImportRecipes($('#imp-json').value); }},'Import pasted')));
   openModal('Import recipes',body);
 }
 function photoErr(e){
