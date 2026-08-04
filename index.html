@@ -217,7 +217,7 @@
 <div id="modal-root"></div>
 <div id="toast-root"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase.js"></script>
 <script>
 /* ================= config & state ================= */
 const LS = 'mealplanner.cfg.v1';
@@ -255,9 +255,11 @@ function makeClient(){
 async function sbTest(url,key){
   try{
     const c=window.supabase.createClient(url,key,{global:{headers:{'x-family-code':'__test__'}}});
-    const {error}=await c.from('families').select('code').limit(1);
+    const q=c.from('families').select('code').limit(1);
+    const timeout=new Promise((_,rej)=>setTimeout(()=>rej(new Error('Connection timed out — check the Project URL and your network')),9000));
+    const {error}=await Promise.race([q,timeout]);
     // an RLS/empty result is fine; only surface hard connection/schema errors
-    if(error && /relation .* does not exist|Failed to fetch|Invalid API key/i.test(error.message)) return error.message;
+    if(error && /relation .* does not exist|Failed to fetch|Invalid API key|JWT|apikey/i.test(error.message)) return error.message;
     return null;
   }catch(e){return e.message;}
 }
@@ -294,6 +296,11 @@ async function saveComponents(next){
 }
 
 /* ================= boot ================= */
+if(!window.supabase||!window.supabase.createClient){
+  const c=$('#setup-connect');
+  if(c) c.prepend(el('div',{class:'banner'},
+    '⚠️ The database library (supabase.js) didn\'t load. Hard-refresh with Ctrl+Shift+R. If it keeps failing, a browser extension or tracking-protection is blocking it — try disabling shield/ad-block for this site.'));
+}
 init();
 function init(){
   if(cfg?.url&&cfg?.key&&cfg?.familyCode&&cfg?.memberName){
@@ -319,6 +326,10 @@ let setupWired=false;
 function wireSetup(){
   if(setupWired)return; setupWired=true;
   $('#cfg-save').addEventListener('click',async()=>{
+    if(!window.supabase||!window.supabase.createClient){
+      toast('Database library didn\'t load — hard-refresh with Ctrl+Shift+R. If it persists, an extension/tracking-protection may be blocking supabase.js','err');
+      return;
+    }
     const url=$('#cfg-url').value.trim().replace(/\/$/,''), key=$('#cfg-key').value.trim();
     if(!url||!key){toast('Enter both URL and key','err');return;}
     $('#cfg-status').innerHTML='<span class="spin"></span> testing…';
